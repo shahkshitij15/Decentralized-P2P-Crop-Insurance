@@ -6,6 +6,7 @@ contract kyc{
         string name;
         address id;
         uint role;
+        int bal;
     }
 
     mapping (address => address) public request;
@@ -14,12 +15,16 @@ contract kyc{
     mapping (address => uint) public deets;
 
     function _register(uint aadhaar, string memory name, uint role) public {
-        details.push(Details(aadhaar,name, msg.sender, role)) ;
+        details.push(Details(aadhaar,name, msg.sender, role, 0)) ;
         deets[msg.sender]=details.length-1;
     }
 
     function getDetails() public view returns (uint, string memory, uint) {
         return (details[deets[msg.sender]].aadhaar, details[deets[msg.sender]].name, details[deets[msg.sender]].role );
+    }
+    
+    function getBalanceUser() public view returns(int){
+        return details[deets[msg.sender]].bal;
     }
     
     function requestFarmer(address farmerAddress) public {
