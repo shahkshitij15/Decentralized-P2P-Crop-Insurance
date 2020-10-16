@@ -11,22 +11,27 @@ contract kyc{
 
     mapping (address => address) public request;
     mapping (address => address) public auth;
-    Details [] public details;
-    mapping (address => uint) public deets;
+    
+    Details [] public details; // array of all the people registered
+    mapping (address => uint) public deets; // map address to id in the array
 
+    // function to register the person 
     function _register(uint aadhaar, string memory name, uint role) public {
         details.push(Details(aadhaar,name, msg.sender, role, 0)) ;
         deets[msg.sender]=details.length-1;
     }
 
+    // function returns the details of the person calling the function
     function getDetails() public view returns (uint, string memory, uint) {
         return (details[deets[msg.sender]].aadhaar, details[deets[msg.sender]].name, details[deets[msg.sender]].role );
     }
     
+    // function to get the balance of the user 
     function getBalanceUser() public view returns(int){
         return details[deets[msg.sender]].bal;
     }
     
+    // function to request the farmer to view his details
     function requestFarmer(address farmerAddress) public {
         // find farmer address using his aadhaar
         require(details[deets[farmerAddress]].role == 0);
@@ -34,6 +39,7 @@ contract kyc{
         request[farmerAddress] = msg.sender; 
     }
 
+    // called by farmer to authorize an invesotr to view his detials 
     function approveInvestor() public returns (uint, string memory, uint){
         
         require(details[deets[msg.sender]].role == 0);
