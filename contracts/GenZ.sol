@@ -2,8 +2,9 @@ pragma solidity ^0.4.24;
 
 
 import "./KYC.sol";
+import "https://github.com/smartcontractkit/chainlink/evm-contracts/src/v0.4/ChainlinkClient.sol";
 
-contract MyContract1 is kyc{
+contract GenZ is kyc,ChainlinkClient{
     
     struct cropType{
         string name;
@@ -34,9 +35,13 @@ contract MyContract1 is kyc{
     enum status {Open,Close}
     
     uint private balance; // holds the amount in the risk pool 
-    uint private result = 1;
+    uint256 public result;
     uint private claimPolicyId;
     uint public payoutAmount;
+    
+    address private oracle;
+    bytes32 private jobId;
+    uint256 private fee;
     
     policy[] public policies; // holds all the policies
     cropType[2] public cropTypes; //crops defined in constructor
@@ -46,6 +51,11 @@ contract MyContract1 is kyc{
     public payable
     {
         require(msg.value == 5000 wei, "5000 wei initial funding required");
+        
+        setPublicChainlinkToken();
+    	oracle = 0xcb65E9b36eB788Ab0F94f06FB3906EcfAF4e055A; // oracle address
+    	jobId = "ecd449555254420abf55f98469c2fcaa"; //job id
+    	fee = 0.1 * 10 ** 18; // 0.1 LINK
         
         newCrop(0, "rabi", 1,  7);
         newCrop(1, "kharif", 2,  10);
@@ -102,7 +112,7 @@ contract MyContract1 is kyc{
         }
     }
     
-    function claim(uint _policyId) public {
+    function claim(uint _policyId,string memory s1, string memory s2) public {
         require(msg.sender == policies[_policyId].user, "User Not Authorized");
         require(policies[_policyId].state == policyState.Active, "Policy Not Active");
         require(policies[_policyId].st == status.Close, "Coverage Amount is not fullfilled");
@@ -117,13 +127,45 @@ contract MyContract1 is kyc{
         
         /* TODO check weather condition over here TODO*/
         
-        // check condition and accordingly pay 
-        if(result==0){
-            payoutAmount = uint(policies[claimPolicyId].coverageAmount);
+        Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fullfillWeather.selector);
+    	req.add("city", "Mumbai");
+    	req.add("start_date", s1);
+    	req.add("end_date",s2);
+    	string[] memory copyPath = new string[](3);
+        copyPath[0] = "data";
+        copyPath[1] = "0";
+        copyPath[2] = "precip";
+        req.addStringArray("copyPath", copyPath);
+        // req.addInt("times", 100);
+    	sendChainlinkRequestTo(oracle, req, fee);
+        
+    }
+    
+    function fullfillWeather(bytes32 _requestId, uint256 _rain) public recordChainlinkFulfillment(_requestId) {
+    	result = _rain;
+    	if(result > 20000){
+            payoutAmount = uint(policies[claimPolicyId].coverageAmount) + uint(policies[claimPolicyId].premium);
             policies[claimPolicyId].user.transfer(payoutAmount);
             policies[claimPolicyId].state = policyState.PaidOut;
             balance-=payoutAmount;
             details[deets[policies[claimPolicyId].user]].bal += int(payoutAmount);
+        }
+        else if(result > 10000 && result<= 20000){
+            uint payoutAmountFarmer = uint(policies[claimPolicyId].coverageAmount * 50/100) + uint(policies[claimPolicyId].premium * 50/100);
+            policies[claimPolicyId].user.transfer(payoutAmountFarmer);
+            balance-=payoutAmountFarmer;
+            details[deets[policies[claimPolicyId].user]].bal += int(payoutAmountFarmer);
+            
+            uint y = sum(policies[claimPolicyId].amtCover);
+            for (uint j=0 ; j<policies[claimPolicyId].cover.length; j++){
+                uint ratio1 = uint((policies[claimPolicyId].amtCover[i]) * 100)/uint(y);
+                uint payoutAmountInv = uint( policies[claimPolicyId].premium * ratio1/100 ) + uint(policies[claimPolicyId].amtCover[i]);
+                payoutAmountInv = payoutAmountInv * 50/100;
+                policies[claimPolicyId].cover[i].transfer(payoutAmountInv);
+                policies[claimPolicyId].state = policyState.PaidOut;
+                balance-=payoutAmountInv;
+                details[deets[policies[claimPolicyId].cover[i]]].bal += int(payoutAmountInv);
+            }
         }
         else{
             uint x = sum(policies[claimPolicyId].amtCover);
@@ -158,8 +200,16 @@ contract MyContract1 is kyc{
     }
     
     // function to get policy details of a particular id
-    function getPolicyDetails(uint _policyId) public view returns(address,address[],uint[],string,uint,uint,uint,uint,uint,uint,uint8,policyState){
+    function getPolicyDetails(uint _policyId) public view returns(address,address[],uint[],string,uint[],uint8,status){
         policy memory p = policies[_policyId];
-        return (p.user,p.cover,p.amtCover,p.location,p.premium,p.area,p.startTime,p.endTime,p.coverageAmount,p.forFlood,p.cropId,p.state);
+        uint[] memory a = new uint[](7);
+        a[0] = _policyId;
+        a[1] = (p.premium);
+        a[2] = (p.area);
+        a[3] = (p.startTime);
+        a[4] = (p.endTime);
+        a[5] = (p.coverageAmount);
+        a[6] = (p.policySum);
+        return (p.user,p.cover,p.amtCover,p.location,a,p.cropId,p.st);
     }
 }

@@ -20,6 +20,15 @@ contract kyc{
         details.push(Details(aadhaar,name, msg.sender, role, 0)) ;
         deets[msg.sender]=details.length-1;
     }
+    
+    function login() public view returns(uint){
+        for (uint i=0; i<details.length; i++){
+            if(details[i].id == msg.sender){
+                return 1;
+            }
+        }
+        return 0;
+    }
 
     // function returns the details of the person calling the function
     function getDetails() public view returns (uint, string memory, uint) {
